@@ -20,6 +20,8 @@ from database import SessionLocal
 
 from routers.auth import router
 
+from routers.auth import get_current_user
+
 router = APIRouter()
 
 
@@ -36,6 +38,9 @@ def get_db():
 # set up a reusable way to inject a database session into your FastAPI routes
 # a type annotation and dependency declaration commonly used in FastAPI applications that utilize SQLAlchemy for database access
 db_dependency = Annotated[Session, Depends(get_db)]
+
+# Dependency to get the current authenticated user
+user_dependency = Annotated[models.Users, Depends(get_current_user)]
 
 # Define the Pydantic model for request validation
 class TodoRequest(BaseModel):
@@ -56,10 +61,15 @@ async def read_todo(todo_id: int, db: db_dependency):
     raise HTTPException(status_code=404, detail="Todo not found")
 
 @router.post("/todo/", status_code=201)
-async def create_todo(todo_request: TodoRequest, db: db_dependency):
+async def create_todo(user: user_dependency, todo_request: TodoRequest, db: db_dependency):
     # .dict() method converts the Pydantic model into a standard Python dictionary, where each key-value pair corresponds to a field and its value
     # ** operator unpacks this dictionary so that each key-value pair is passed as a keyword argument to the models
-    todo_model = models.Todo(**todo_request.dict())
+    
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    
+    todo_model = models.Todo(**todo_request.dict(), owner_id=user.id)
     # todo_model = models.Todo()
     # todo_model.title = todo_request.title
     # todo_model.description = todo_request.description
